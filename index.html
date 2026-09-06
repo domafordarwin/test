@@ -1,62 +1,501 @@
-<div>Teachable Machine Image Model</div>
-<button type="button" onclick="init()">Start</button>
-<div id="webcam-container"></div>
-<div id="label-container"></div>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-<script type="text/javascript">
-    // More API functions here:
-    // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#120018" />
+  <title>이게맞음?? AI 짤스캐너</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg0: #120018;
+      --bg1: #2a0050;
+      --pink: #ff4d9a;
+      --hot: #ff2d6f;
+      --cyan: #2ef2ff;
+      --lime: #c8ff3d;
+      --yellow: #ffe56b;
+      --purple: #b388ff;
+    }
 
-    // the link to your model provided by Teachable Machine export panel
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      background: var(--bg0);
+      color: #fff;
+      font-family: "Noto Sans KR", sans-serif;
+      overflow-x: hidden;
+    }
+
+    body {
+      background:
+        radial-gradient(1200px 700px at 10% -10%, #5b1b8a 0%, transparent 55%),
+        radial-gradient(900px 600px at 110% 10%, #ff2d6f55 0%, transparent 50%),
+        radial-gradient(800px 500px at 50% 120%, #2ef2ff33 0%, transparent 55%),
+        var(--bg0);
+    }
+
+    .sticker {
+      position: fixed;
+      z-index: 0;
+      pointer-events: none;
+      user-select: none;
+      font-weight: 900;
+      opacity: .22;
+      animation: floaty 6s ease-in-out infinite;
+    }
+    .s1 { top: 8%; left: 4%; font-size: 42px; transform: rotate(-18deg); color: var(--lime); }
+    .s2 { top: 18%; right: 3%; font-size: 28px; transform: rotate(12deg); color: var(--cyan); animation-delay: -1.4s; }
+    .s3 { bottom: 22%; left: 2%; font-size: 34px; transform: rotate(8deg); color: var(--yellow); animation-delay: -2.2s; }
+    .s4 { bottom: 12%; right: 5%; font-size: 30px; transform: rotate(-10deg); color: var(--pink); animation-delay: -3s; }
+    .s5 { top: 46%; left: -6%; font-size: 64px; color: var(--purple); animation-delay: -4s; }
+
+    @keyframes floaty {
+      0%, 100% { transform: translateY(0) rotate(var(--r, -12deg)); }
+      50% { transform: translateY(-10px) rotate(calc(var(--r, -12deg) + 6deg)); }
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      max-width: 430px;
+      margin: 0 auto;
+      padding: calc(18px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .badge {
+      display: inline-block;
+      background: var(--lime);
+      color: #120018;
+      font-family: "Black Han Sans", sans-serif;
+      font-size: 13px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      transform: rotate(-6deg);
+      box-shadow: 3px 3px 0 #000;
+    }
+
+    h1 {
+      margin: 8px 0 0;
+      font-family: "Black Han Sans", sans-serif;
+      font-size: clamp(28px, 9vw, 40px);
+      line-height: 1.05;
+      letter-spacing: -0.5px;
+      text-shadow: 4px 4px 0 #000, 0 0 18px #ff4d9a88;
+    }
+    h1 span { color: var(--cyan); }
+
+    .sub {
+      margin: 8px 0 0;
+      font-family: "Jua", sans-serif;
+      font-size: 16px;
+      color: #ffd6ee;
+    }
+
+    .live-chip {
+      background: #000;
+      border: 2px solid var(--hot);
+      color: var(--hot);
+      font-weight: 900;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      box-shadow: 3px 3px 0 var(--hot);
+      animation: blink 1.2s steps(2) infinite;
+    }
+    @keyframes blink { 50% { opacity: .45; } }
+
+    .cam-wrap {
+      position: relative;
+      margin-top: 16px;
+      background: #000;
+      border: 4px solid #fff;
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow: 8px 8px 0 #000, 0 0 0 6px var(--pink);
+      aspect-ratio: 1 / 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #webcam-container canvas {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
+      display: block;
+    }
+
+    .cam-empty {
+      text-align: center;
+      padding: 24px;
+      font-family: "Jua", sans-serif;
+      color: #ffb8de;
+    }
+    .cam-empty .big {
+      font-family: "Black Han Sans", sans-serif;
+      font-size: 34px;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .corner {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      border: 4px solid var(--lime);
+      z-index: 2;
+      pointer-events: none;
+    }
+    .c-tl { top: 10px; left: 10px; border-right: 0; border-bottom: 0; }
+    .c-tr { top: 10px; right: 10px; border-left: 0; border-bottom: 0; }
+    .c-bl { bottom: 10px; left: 10px; border-right: 0; border-top: 0; }
+    .c-br { bottom: 10px; right: 10px; border-left: 0; border-top: 0; }
+
+    .speech {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%) rotate(-3deg);
+      background: #fff;
+      color: #111;
+      font-family: "Black Han Sans", sans-serif;
+      font-size: 18px;
+      padding: 8px 14px;
+      border-radius: 16px 16px 16px 4px;
+      box-shadow: 3px 3px 0 #000;
+      z-index: 3;
+      white-space: nowrap;
+    }
+
+    .start-btn {
+      width: 100%;
+      margin-top: 16px;
+      border: 0;
+      cursor: pointer;
+      font-family: "Black Han Sans", sans-serif;
+      font-size: 28px;
+      letter-spacing: 1px;
+      color: #120018;
+      background: linear-gradient(180deg, var(--yellow), #ffb703);
+      padding: 16px 18px 18px;
+      border-radius: 18px;
+      box-shadow: 0 6px 0 #b88600, 0 10px 0 #000;
+      transition: transform .08s ease, box-shadow .08s ease;
+    }
+    .start-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #b88600, 0 4px 0 #000;
+    }
+    .start-btn.running {
+      background: linear-gradient(180deg, #9bff6a, #3ad100);
+      box-shadow: 0 6px 0 #1e7a00, 0 10px 0 #000;
+    }
+
+    .verdict {
+      margin-top: 16px;
+      background: #fff;
+      color: #111;
+      border-radius: 20px;
+      padding: 14px 14px 16px;
+      box-shadow: 7px 7px 0 #000;
+      border: 3px solid #111;
+      transform: rotate(-0.6deg);
+    }
+
+    .verdict-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: "Jua", sans-serif;
+      font-size: 15px;
+    }
+
+    .verdict-main {
+      margin-top: 6px;
+      font-family: "Black Han Sans", sans-serif;
+      font-size: clamp(26px, 8vw, 36px);
+      line-height: 1.1;
+    }
+
+    .verdict-react {
+      display: inline-block;
+      margin-top: 8px;
+      background: var(--hot);
+      color: #fff;
+      font-family: "Black Han Sans", sans-serif;
+      padding: 6px 12px;
+      border-radius: 999px;
+      transform: rotate(3deg);
+      box-shadow: 3px 3px 0 #000;
+    }
+
+    #label-container {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .pred {
+      background: rgba(0,0,0,.45);
+      border: 2px solid #fff3;
+      border-radius: 14px;
+      padding: 10px 12px;
+      backdrop-filter: blur(8px);
+    }
+    .pred.top {
+      border-color: var(--lime);
+      box-shadow: 0 0 0 3px #c8ff3d33;
+    }
+    .pred-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-family: "Jua", sans-serif;
+      font-size: 16px;
+    }
+    .pred-pct {
+      font-family: "Black Han Sans", sans-serif;
+      color: var(--yellow);
+    }
+    .bar {
+      margin-top: 8px;
+      height: 10px;
+      background: #2a2a3d;
+      border-radius: 99px;
+      overflow: hidden;
+      border: 1px solid #fff2;
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--pink), var(--yellow), var(--cyan));
+      border-radius: 99px;
+      transition: width .18s ease;
+    }
+
+    .tips {
+      margin-top: 16px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: #ffd6ee;
+      background: rgba(255,255,255,.06);
+      border: 2px dashed #ff4d9a88;
+      border-radius: 16px;
+      padding: 12px 14px;
+    }
+    .tips b { color: var(--lime); }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(24px + env(safe-area-inset-bottom));
+      transform: translateX(-50%) translateY(80px);
+      background: #fff;
+      color: #111;
+      font-family: "Black Han Sans", sans-serif;
+      padding: 10px 16px;
+      border-radius: 999px;
+      box-shadow: 4px 4px 0 #000;
+      z-index: 9;
+      opacity: 0;
+      transition: .25s ease;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .shake { animation: shake .35s ease; }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px) rotate(-1deg); }
+      75% { transform: translateX(6px) rotate(1deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="sticker s1">ㅋㅋㅋㅋ</div>
+  <div class="sticker s2">ㅇㅈ</div>
+  <div class="sticker s3">대박</div>
+  <div class="sticker s4">ㄹㅇ</div>
+  <div class="sticker s5">★</div>
+
+  <main class="app">
+    <div class="topbar">
+      <div>
+        <div class="badge">중딩 한정판 짤머신</div>
+        <h1>이게<span>맞음</span>??</h1>
+        <p class="sub">카메라 들이대면 AI가 바로 판정함 ㄱㄱ</p>
+      </div>
+      <div class="live-chip" id="liveChip">READY</div>
+    </div>
+
+    <section class="cam-wrap" id="camBox">
+      <div class="corner c-tl"></div>
+      <div class="corner c-tr"></div>
+      <div class="corner c-bl"></div>
+      <div class="corner c-br"></div>
+      <div class="speech" id="speech">찍기 전임 ㅎ</div>
+      <div id="webcam-container">
+        <div class="cam-empty" id="emptyState">
+          <div class="big">📸</div>
+          아래 버튼 누르면<br>후면 카메라 ON
+        </div>
+      </div>
+    </section>
+
+    <button type="button" class="start-btn" id="startBtn" onclick="init()">시작 ㄱㄱ</button>
+
+    <section class="verdict" id="verdict" hidden>
+      <div class="verdict-top">
+        <span>AI 최종 판결문</span>
+        <span id="confText">0%</span>
+      </div>
+      <div class="verdict-main" id="verdictMain">아직 모름</div>
+      <div class="verdict-react" id="verdictReact">대기중...</div>
+    </section>
+
+    <div id="label-container"></div>
+
+    <div class="tips">
+      <b>사용법 ㅇㅈ?</b><br>
+      1) 같은 폴더에 <b>my_model</b> 넣기 (model.json / metadata.json / weights)<br>
+      2) 휴대폰 크롬/사파리로 열기 → 카메라 허용<br>
+      3) 물체 들이대고 제일 긴 게이지가 정답<br>
+      홈화면 추가하면 앱처럼 쓸 수 있음. 로컬에선 서버로 열어야 카메라가 됨!
+    </div>
+  </main>
+
+  <div class="toast" id="toast">레전드 판정 나옴 ㅋㅋ</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+  <script>
     const URL = "./my_model/";
-
     let model, webcam, labelContainer, maxPredictions;
+    let running = false;
+    let lastTop = "";
 
-    // Load the image model and setup the webcam
+    const reactions = [
+      { min: 0.92, text: "ㄹㅇ 팩트폭행", speech: "이거 맞음 ㅇㅈ" },
+      { min: 0.80, text: "거의 레전드", speech: "느낌 오지네" },
+      { min: 0.65, text: "꽤 확실함", speech: "이거 아님?" },
+      { min: 0.45, text: "반반임 ㅋㅋ", speech: "흠... 고고?" },
+      { min: 0.00, text: "AI도 헷갈림", speech: "뭐야 이게" }
+    ];
+
+    function reactFor(p) {
+      return reactions.find(r => p >= r.min);
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 1400);
+    }
+
     async function init() {
+      if (running) return;
+      const btn = document.getElementById("startBtn");
+      btn.textContent = "로딩중... 잠깐만";
+      btn.disabled = true;
+
+      try {
         const modelURL = URL + "model.json";
         const metadataURL = URL + "metadata.json";
-
-        // load the model and metadata
-        // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
-        // or files from your local hard drive
-        // Note: the pose library adds "tmImage" object to your window (window.tmImage)
         model = await tmImage.load(modelURL, metadataURL);
         maxPredictions = model.getTotalClasses();
 
-        // Convenience function to setup a webcam
-        const flip = false;
-        webcam = new tmImage.Webcam(320, 320, flip);
-
-        await webcam.setup({
-            facingMode: "environment"
-        });
+        const size = Math.min(360, Math.floor(window.innerWidth - 40));
+        webcam = new tmImage.Webcam(size, size, false);
+        await webcam.setup({ facingMode: "environment" });
         await webcam.play();
-        window.requestAnimationFrame(loop);
 
-        // append elements to the DOM
+        document.getElementById("emptyState")?.remove();
         document.getElementById("webcam-container").appendChild(webcam.canvas);
+        document.getElementById("verdict").hidden = false;
+        document.getElementById("liveChip").textContent = "LIVE";
+
         labelContainer = document.getElementById("label-container");
-        for (let i = 0; i < maxPredictions; i++) { // and class labels
-            labelContainer.appendChild(document.createElement("div"));
+        labelContainer.innerHTML = "";
+        for (let i = 0; i < maxPredictions; i++) {
+          const wrap = document.createElement("div");
+          wrap.className = "pred";
+          wrap.innerHTML = '<div class="pred-row"><span class="pred-name">-</span><span class="pred-pct">0%</span></div><div class="bar"><i></i></div>';
+          labelContainer.appendChild(wrap);
         }
+
+        running = true;
+        btn.disabled = false;
+        btn.classList.add("running");
+        btn.textContent = "카메라 켜짐 ★";
+        window.requestAnimationFrame(loop);
+      } catch (err) {
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = "다시 시도 ㄱ";
+        showToast("모델/카메라 오류남 ㅠ");
+        alert("모델을 못 불러왔거나 카메라 권한이 없어요.\n\n체크할 것:\n1) my_model 폴더가 이 파일 옆에 있는지\n2) localhost/https로 열었는지\n3) 카메라 권한 허용했는지");
+      }
     }
 
     async function loop() {
-        webcam.update(); // update the webcam frame
-        await predict();
-        window.requestAnimationFrame(loop);
+      webcam.update();
+      await predict();
+      window.requestAnimationFrame(loop);
     }
 
-    // run the webcam image through the image model
     async function predict() {
-        // predict can take in an image, video or canvas html element
-        const prediction = await model.predict(webcam.canvas);
-        for (let i = 0; i < maxPredictions; i++) {
-            const classPrediction =
-                prediction[i].className + ": " + prediction[i].probability.toFixed(2);
-            labelContainer.childNodes[i].innerHTML = classPrediction;
-        }
+      const prediction = await model.predict(webcam.canvas);
+      let topIdx = 0;
+      for (let i = 1; i < prediction.length; i++) {
+        if (prediction[i].probability > prediction[topIdx].probability) topIdx = i;
+      }
+
+      for (let i = 0; i < maxPredictions; i++) {
+        const p = prediction[i];
+        const node = labelContainer.childNodes[i];
+        const pct = Math.round(p.probability * 100);
+        node.classList.toggle("top", i === topIdx);
+        node.querySelector(".pred-name").textContent = p.className;
+        node.querySelector(".pred-pct").textContent = pct + "%";
+        node.querySelector(".bar > i").style.width = pct + "%";
+      }
+
+      const top = prediction[topIdx];
+      const r = reactFor(top.probability);
+      document.getElementById("verdictMain").textContent = top.className;
+      document.getElementById("confText").textContent = Math.round(top.probability * 100) + "%";
+      document.getElementById("verdictReact").textContent = r.text;
+      document.getElementById("speech").textContent = r.speech;
+
+      if (top.className !== lastTop && top.probability >= 0.8) {
+        lastTop = top.className;
+        document.getElementById("camBox").classList.remove("shake");
+        void document.getElementById("camBox").offsetWidth;
+        document.getElementById("camBox").classList.add("shake");
+        showToast(top.className + " ㅇㅈ");
+        if (navigator.vibrate) navigator.vibrate(30);
+      }
     }
-</script>
+  </script>
+</body>
+</html>
